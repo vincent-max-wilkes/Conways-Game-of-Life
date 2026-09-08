@@ -6,18 +6,19 @@
 #include <time.h>
 #include <unistd.h>
 
+#define SCALE 4
+#define STARTCOUNT 30
 #define WIDTH 2560 / SCALE
 #define HEIGHT 1440 / SCALE
-#define SCALE 2
-#define STARTCOUNT 50
 #define DEAD 0xFFFFFF
 #define ALIVE 0x000000
 
 typedef uint32_t grid[HEIGHT][WIDTH];
 
-grid framebuffer;
 grid game;
 grid next;
+grid framebuffer;
+
 
 void rules(grid game, grid next)
 {
@@ -27,7 +28,7 @@ void rules(grid game, grid next)
 	{
 	    int neighbour = 0;
 
-	    for(int di = -1; di < 2; di++)
+	    for(int di = -1; di < 2; di++) //check neighbours
 	    {
 		for(int dj = -1; dj < 2; dj++)
 		{
@@ -38,21 +39,24 @@ void rules(grid game, grid next)
 		    int ni = i + di;
 		    int nj = j + dj;
 
-		    if(ni >= 0 && ni < HEIGHT && nj >= 0 && nj < WIDTH && game[ni][nj] == ALIVE){
+		    if(ni >= 0 && ni < HEIGHT && nj >= 0 && nj < WIDTH && game[ni][nj] == 0){
 			neighbour++;
 		    }
 		}
 	    }		    
 
 	    //rules
-	    if(game[i][j] == ALIVE && (neighbour == 2 || neighbour == 3)){
-		next[i][j] = ALIVE; //equilibrium
+	    if(game[i][j] == 0 && (neighbour == 2 || neighbour == 3)){
+		next[i][j] = 0; //equilibrium
 	    }
-	    else if(game[i][j] == DEAD && neighbour == 3){
-		next[i][j] = ALIVE; //reproductiuon
+	    else if(game[i][j] > 0 && neighbour == 3){
+		next[i][j] = 0; //reproductiuon
+	    }
+	    else if(game[i][j] == 0 && (neighbour < 2 || neighbour > 3)){
+		next[i][j] = 1; //underpopulation, overpopulation
 	    }
 	    else{
-		next[i][j] = DEAD; //includes underpopulation, overpopulation and nothing
+		next[i][j]++; //remains deed 
 	    }
 	}
     }
@@ -65,9 +69,9 @@ void random_seed(void)
 	for(int j = 0; j < WIDTH; j++)
 	{
 	     if(rand() % 100 < STARTCOUNT)
-		 game[i][j] = ALIVE;
+		 game[i][j] = 0;
 	     else
-		 game[i][j] = DEAD;
+		 game[i][j] = 1;
 	}
     }
 }
@@ -87,6 +91,27 @@ void clear(uint32_t color) {
 	    framebuffer[y][x] = color;
 	}
     }
+}
+
+uint32_t whiten(int turn)
+{
+    uint32_t color = 0xA3C1E0;
+    
+    uint8_t r = (color >> 16) & 0xFF;
+    uint8_t g = (color >> 8) & 0xFF;
+    uint8_t b = color& 0xFF;
+
+    float grade = (float)turn / 200;
+
+    if(grade > 1.0f) {
+	grade = 1.0f;
+    }
+
+    r = r + (255 - r) * grade;
+    g = g + (255 - g) * grade;
+    b = b + (255 - b) * grade;
+
+    return (r << 16) | (g << 8) | b;
 }
 
 
@@ -185,8 +210,12 @@ int main(void)
 	    {
 		for(int j = 0; j < WIDTH; j++)
 		{
-		    if(next[i][j] == ALIVE)
+		    if(next[i][j] == 0) {
 			put_pixel(j, i, ALIVE);
+		    }
+		    if(next[i][j] > 0) {
+			put_pixel(j, i, whiten(next[i][j]));
+		    }
 		}
 	    }
 
